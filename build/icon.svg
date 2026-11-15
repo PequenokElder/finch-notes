@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffd966"/><stop offset="1" stop-color="#eba400"/></linearGradient>
+    <linearGradient id="body" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffffff"/><stop offset="1" stop-color="#fff3cf"/></linearGradient>
+  </defs>
+  <rect x="100" y="100" width="824" height="824" rx="190" fill="url(#bg)"/>
+  <!-- tail -->
+  <path d="M330 600 L170 720 L190 650 L150 640 L335 540 Z" fill="#2b2d31"/>
+  <!-- legs -->
+  <path d="M470 720 L455 800 M560 725 L560 805" stroke="#2b2d31" stroke-width="16" stroke-linecap="round"/>
+  <!-- body -->
+  <ellipse cx="520" cy="560" rx="235" ry="180" transform="rotate(-12 520 560)" fill="url(#body)"/>
+  <!-- wing -->
+  <path d="M390 520 C470 470 600 500 640 600 C560 660 440 650 380 590 Z" fill="#2b2d31"/>
+  <path d="M430 585 C500 555 575 570 600 605" stroke="#ffd966" stroke-width="14" fill="none" stroke-linecap="round"/>
+  <!-- head -->
+  <circle cx="650" cy="425" r="118" fill="url(#body)"/>
+  <path d="M580 340 C620 300 700 305 740 350 C700 350 640 360 580 395 Z" fill="#2b2d31"/>
+  <!-- beak -->
+  <path d="M752 408 L850 440 L752 468 Z" fill="#e8742a"/>
+  <!-- eye -->
+  <circle cx="685" cy="418" r="22" fill="#2b2d31"/><circle cx="692" cy="411" r="7" fill="#fff"/>
+</svg>

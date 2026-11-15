@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: file: https:; script-src 'self'">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Finch</title>
+  <link rel="stylesheet" href="app.css">
+</head>
+<body>
+  <div id="app">
+    <aside id="sidebar">
+      <div class="side-drag"></div>
+      <div class="side-head">
+        <div class="search-wrap">
+          <input id="search" type="search" placeholder="Search" spellcheck="false" autocomplete="off">
+        </div>
+        <button id="new-note" class="icon-btn" title="New note (⌘N)" aria-label="New note"></button>
+      </div>
+      <div id="tags"></div>
+      <ul id="note-list"></ul>
+      <div id="side-foot"><button id="open-settings" class="foot-btn" title="Settings (⌘,)"></button></div>
+    </aside>
+
+    <main id="main">
+      <header id="toolbar"></header>
+      <div id="panes">
+        <div id="editor-wrap"><div id="editor"></div></div>
+        <div id="preview-wrap" hidden><article id="preview" class="doc"></article></div>
+      </div>
+      <footer id="status"><span id="stat-words"></span>
+        <span id="zoom-ctl">
+          <button id="zoom-out" title="Zoom out (⌘−)" aria-label="Zoom out">−</button>
+          <button id="zoom-val" title="Actual size (⌘0)">100%</button>
+          <button id="zoom-in" title="Zoom in (⌘+)" aria-label="Zoom in">+</button>
+        </span>
+        <span id="stat-saved"></span></footer>
+    </main>
+  </div>
+
+  <div id="float-bar" hidden></div>
+
+  <div id="export-pop" hidden>
+    <div class="pop-title">Export as PDF</div>
+    <label class="pop-row"><span>Page size</span>
+      <select id="exp-size"><option value="Letter">US Letter</option><option value="A4">A4</option></select>
+    </label>
+    <label class="pop-row check"><input type="checkbox" id="exp-numbers" checked><span>Page numbers</span></label>
+    <button id="exp-go" class="primary">Export…</button>
+  </div>
+
+  <div id="settings" hidden></div>
+  <div id="toast" hidden></div>
+  <script src="dist/app.js"></script>
+</body>
+</html>
