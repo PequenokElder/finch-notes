@@ -272,6 +272,9 @@ function buildDecorations(view) {
           for (let n = l1; n <= l2; n++) lineDeco(doc.line(n).from, 'cm-table-row');
         } else if (name === 'ListMark') {
           const line = doc.lineAt(node.from);
+          // A lone "-" or "1." (no space yet) is not finished: keep it visible as typed, so it doesn't
+          // look like a bullet before the space and invite typing text straight after it.
+          if (doc.sliceString(node.to, node.to + 1) !== ' ') return;
           // Markers always render as bullets/numbers/checkboxes, even on the line you're typing on,
           // so continuing a list feels seamless. (Backspace at the start removes the marker.)
           // Depth = number of enclosing list items.

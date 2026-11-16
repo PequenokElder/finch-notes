@@ -483,6 +483,28 @@ app.whenReady().then(async () => {
             await mainWindow.webContents.executeJavaScript(process.env.FINCH_SNAPSHOT_JS);
             await new Promise((r) => setTimeout(r, Number(process.env.FINCH_SNAPSHOT_WAIT || 700)));
           }
+          // FINCH_KEYS: JSON array of strings (typed text) and {key, mods} (special keys), sent as real key events.
+          if (process.env.FINCH_KEYS) {
+            const wc = mainWindow.webContents;
+            const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+            for (const step of JSON.parse(process.env.FINCH_KEYS)) {
+              if (typeof step === 'string') {
+                for (const ch of step) {
+                  wc.sendInputEvent({ type: 'keyDown', keyCode: ch });
+                  wc.sendInputEvent({ type: 'char', keyCode: ch });
+                  wc.sendInputEvent({ type: 'keyUp', keyCode: ch });
+                  await sleep(40);
+                }
+              } else {
+                wc.sendInputEvent({ type: 'keyDown', keyCode: step.key, modifiers: step.mods || [] });
+                if (step.key === 'Return') wc.sendInputEvent({ type: 'char', keyCode: '\r' });
+                wc.sendInputEvent({ type: 'keyUp', keyCode: step.key, modifiers: step.mods || [] });
+                await sleep(60);
+              }
+            }
+            await sleep(300);
+          }
+          if (process.env.FINCH_AFTER_JS) await mainWindow.webContents.executeJavaScript(process.env.FINCH_AFTER_JS);
           const img = await mainWindow.webContents.capturePage();
           fs.writeFileSync(process.env.FINCH_SNAPSHOT, img.toPNG());
         } catch (err) {
