@@ -32,6 +32,9 @@ Set `FINCH_NOTES_DIR=/some/folder` to override the folder for a single run.
 - **Click into a line** to see its raw Markdown; click away and it tidies up.
 - `#tags` anywhere in a note show up as filters in the sidebar. Tag-only lines are left out of PDFs.
 - **⇧⌘P** cycles Edit → Split preview → Preview. **⇧⌘E** exports a PDF (Letter or A4, optional page numbers).
+- New notes start as a **Heading 1**. **Shift+Enter** steps down: H1 → H2 → H3 → body text (on an empty heading it cycles in place).
+- Lists keep their bullets/numbers as you type: Enter continues the list, Enter on an empty item ends it. **⇧⌘.** makes a block quote.
+- Start a list under a short heading-like line and that line becomes a **Heading 2** automatically (⌘Z undoes it; toggle in Settings).
 - Every command is also in the **Format** menu with its shortcut.
 - **⌘, Settings** has eight themes (Goldfinch, Nightingale, Snowfinch, Blackbird, Bluebird, Meadowlark, Cardinal, Twilight Swallow) plus Auto.
 - Zoom with ⌘+ / ⌘− / ⌘0, pinch, or the status bar. Pin notes with ⇧⌘D. Paste or drag images straight into a note.

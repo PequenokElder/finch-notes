@@ -72,7 +72,7 @@ const TOOLBAR = [
   ['format:code', { icon: 'code' }, 'Inline code (⌘E)'],
   ['format:link', { icon: 'link' }, 'Link (⌘K)'],
   '|',
-  ['format:quote', { icon: 'quote' }, 'Block quote (⌥⌘Q)'],
+  ['format:quote', { icon: 'quote' }, 'Block quote (⇧⌘.)'],
   ['format:codeblock', { icon: 'codeblock' }, 'Code block (⌥⌘C)'],
   '|',
   ['format:ul', { icon: 'ul' }, 'Bulleted list (⇧⌘8)'],
@@ -323,9 +323,15 @@ async function leaveCurrent() {
   currentId = null;
 }
 
+// Every new note starts as a Heading 1; Shift+Enter then steps down to H2, H3 and body text.
+const NEW_NOTE_TEXT = '# ';
+const isBlankNote = (t) => /^\s*(#{1,6}\s*)?$/.test(t);
+
 async function newNote() {
-  // If the current note is already blank, just keep using it.
-  if (currentId && view.state.doc.toString().trim() === '') {
+  // If the current note is still blank, just keep using it.
+  if (currentId && isBlankNote(view.state.doc.toString())) {
+    if (view.state.doc.length === 0) view.dispatch({ changes: { from: 0, insert: NEW_NOTE_TEXT } });
+    view.dispatch({ selection: { anchor: view.state.doc.length } });
     view.focus();
     return;
   }
@@ -333,10 +339,11 @@ async function newNote() {
   query = '';
   $('#search').value = '';
   activeTag = null;
-  const id = await api.create('');
+  const id = await api.create(NEW_NOTE_TEXT);
   currentId = id;
   store.set('last', id);
-  loadText(view, '');
+  loadText(view, NEW_NOTE_TEXT);
+  view.dispatch({ selection: { anchor: NEW_NOTE_TEXT.length } }); // cursor ready to type the title
   await refreshList();
   renderPreview();
   updateStatus();
@@ -518,6 +525,9 @@ async function openSettings() {
         </button>
         ${cards}
       </div>
+      <h3>Writing</h3>
+      <label class="pop-row check" style="margin:6px 0"><input type="checkbox" id="set-autoh"><span>Turn the line above a new list into a Heading 2</span></label>
+      <p class="sub">Only short, standalone lines that don't end in a period. ⌘Z undoes it.</p>
       <h3>Notes folder</h3>
       <p class="sub">Where Finch keeps your notes as plain Markdown files.</p>
       <div class="folder-row"><div class="folder-path" title="${info.notesDir}">${info.notesDir}</div>
@@ -528,6 +538,8 @@ async function openSettings() {
     c.classList.toggle('selected', c.dataset.pick === current);
     c.addEventListener('click', () => applyTheme(c.dataset.pick === 'auto' ? null : c.dataset.pick));
   });
+  $('#set-autoh').checked = store.get('autoHeading') !== '0';
+  $('#set-autoh').addEventListener('change', (e) => store.set('autoHeading', e.target.checked ? '1' : '0'));
   $('#set-close').addEventListener('click', closeSettings);
   $('#set-reveal').addEventListener('click', () => api.reveal(info.notesDir));
   $('#set-folder').addEventListener('click', () => api.chooseFolder());
@@ -612,6 +624,7 @@ async function boot() {
       schedulePreview();
       updateStatusSoon();
     },
+    autoHeadingEnabled: () => store.get('autoHeading') !== '0',
     onImageFiles: async (files) => {
       const rels = [];
       for (const f of files) {

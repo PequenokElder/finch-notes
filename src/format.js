@@ -41,16 +41,26 @@ function build(p) {
 function replaceLines(view, edit) {
   const { state } = view;
   const changes = [];
-  const ranges = state.selection.ranges;
   const seen = new Set();
-  for (const range of ranges) {
+  for (const range of state.selection.ranges) {
     const lines = selectedLines(state, range).filter((l) => !seen.has(l.number));
     lines.forEach((l) => seen.add(l.number));
     edit(lines, (line, text) => {
-      if (text !== line.text) changes.push({ from: line.from, to: line.to, insert: text });
+      if (text === line.text) return;
+      // Touch only the part that changed, so the cursor stays where it was.
+      const old = line.text;
+      const max = Math.min(old.length, text.length);
+      let pre = 0;
+      while (pre < max && old[pre] === text[pre]) pre++;
+      let suf = 0;
+      while (suf < max - pre && old[old.length - 1 - suf] === text[text.length - 1 - suf]) suf++;
+      changes.push({ from: line.from + pre, to: line.to - suf, insert: text.slice(pre, text.length - suf) });
     });
   }
-  if (changes.length) view.dispatch({ changes, scrollIntoView: true });
+  if (changes.length) {
+    const cs = state.changes(changes);
+    view.dispatch({ changes, selection: state.selection.map(cs, 1), scrollIntoView: true });
+  }
   view.focus();
 }
 
@@ -139,7 +149,7 @@ export function toggleQuote(view) {
     const allQuoted = lines.every(hasQuote);
     for (const l of lines) {
       if (allQuoted) set(l, l.text.replace(/^(\s{0,3})>\s?/, '$1'));
-      else if (!hasQuote(l)) set(l, l.text.trim() ? '> ' + l.text : '>'); // don't nest an already-quoted line
+      else if (!hasQuote(l)) set(l, l.text.trim() ? '> ' + l.text : lines.length === 1 ? '> ' : '>'); // don't nest a quoted line
     }
   });
 }

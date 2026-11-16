@@ -1,4 +1,4 @@
-import { EditorState } from '@codemirror/state';
+import { EditorState, Prec } from '@codemirror/state';
 import {
   EditorView,
   ViewPlugin,
@@ -17,7 +17,7 @@ import {
   LanguageDescription,
   indentOnInput,
 } from '@codemirror/language';
-import { markdown, markdownLanguage } from '@codemirror/lang-markdown';
+import { markdown, markdownLanguage, insertNewlineContinueMarkup } from '@codemirror/lang-markdown';
 import { search, searchKeymap, highlightSelectionMatches } from '@codemirror/search';
 import { tags as t } from '@lezer/highlight';
 import { javascript } from '@codemirror/lang-javascript';
@@ -26,6 +26,7 @@ import { css } from '@codemirror/lang-css';
 import { html } from '@codemirror/lang-html';
 import { json } from '@codemirror/lang-json';
 import { resolveImageSrc } from './images.js';
+import { toggleQuote } from './format.js';
 
 // ---------- code-fence languages ----------
 
@@ -189,6 +190,8 @@ function buildDecorations(view) {
         } else if ((m = /^SetextHeading([12])$/.exec(name))) {
           const l1 = doc.lineAt(node.from).number;
           const l2 = doc.lineAt(node.to).number;
+          // A lone "-" under a line is just someone starting a bullet list; don't flash a heading.
+          if (doc.line(l2).text.trim().length < 3) return;
           for (let n = l1; n <= l2; n++) lineDeco(doc.line(n).from, `cm-h cm-h${m[1]}`);
         } else if (name === 'HeaderMark' && node.node.parent?.name.startsWith('ATX')) {
           if (!isActive(node.from)) {
@@ -269,7 +272,8 @@ function buildDecorations(view) {
           for (let n = l1; n <= l2; n++) lineDeco(doc.line(n).from, 'cm-table-row');
         } else if (name === 'ListMark') {
           const line = doc.lineAt(node.from);
-          if (isActive(node.from)) return;
+          // Markers always render as bullets/numbers/checkboxes, even on the line you're typing on,
+          // so continuing a list feels seamless. (Backspace at the start removes the marker.)
           // Depth = number of enclosing list items.
           let depth = 0;
           for (let p = node.node.parent; p; p = p.parent) if (p.name === 'ListItem') depth++;
@@ -332,6 +336,73 @@ const liveStyle = ViewPlugin.fromClass(
 
 // ---------- editor factory ----------
 
+// When you start a list (type "- " or "1. ") directly under a short, standalone, heading-like line,
+// that line becomes a Heading 2. Applied as its own undo step, so ⌘Z reverts just the heading.
+function looksLikeHeadingText(state, prev) {
+  const t = prev.text;
+  if (!t.trim() || /^\s/.test(t) || t.length > 70) return false;
+  if (/^(#{1,6}\s|>|[-*+]\s|\d+[.)]\s|```|~~~|\||!\[|<)/.test(t)) return false; // already something else
+  if (/[.!?;,)\]]\s*$/.test(t)) return false; // reads like a sentence, not a title
+  if (prev.number > 1 && state.doc.line(prev.number - 1).text.trim() !== '') return false; // part of a bigger paragraph
+  for (let n = syntaxTree(state).resolveInner(prev.from, 1); n; n = n.parent) {
+    if (/^(FencedCode|CodeBlock|Table|HTMLBlock|Blockquote|ListItem)$/.test(n.name)) return false;
+  }
+  return true;
+}
+
+function autoHeadingAboveList(enabled) {
+  return ViewPlugin.fromClass(
+    class {
+      update(u) {
+        if (!u.docChanged || !enabled()) return;
+        if (!u.transactions.some((t) => t.isUserEvent('input.type'))) return; // typed, not pasted or auto-continued
+        const { state, view } = u;
+        const sel = state.selection.main;
+        if (!sel.empty) return;
+        const line = state.doc.lineAt(sel.head);
+        if (line.number < 2 || sel.head !== line.to || !/^(?:[-*+]|1[.)]) $/.test(line.text)) return;
+        const prev = state.doc.line(line.number - 1);
+        if (!looksLikeHeadingText(state, prev)) return;
+        const doc = state.doc;
+        Promise.resolve().then(() => {
+          if (view.state.doc !== doc) return; // user kept typing; leave it
+          view.dispatch({ changes: { from: prev.from, insert: '## ' }, userEvent: 'input.autoheading' });
+        });
+      }
+    }
+  );
+}
+
+// Shift+Enter on a heading "steps down": H1 → H2 → H3 → body text.
+//  • Heading with text: starts a new line at the next level down (text after the cursor moves with it).
+//  • Empty heading line (e.g. just "## "): steps that line down in place, so tapping it repeatedly cycles to body text.
+// Anywhere else it behaves like Enter (continuing lists and quotes).
+function stepDownHeading(view) {
+  const { state } = view;
+  const sel = state.selection.main;
+  const line = state.doc.lineAt(sel.head);
+  const m = line.text.match(/^(#{1,6})(\s+)(.*)$/);
+  if (!m) return insertNewlineContinueMarkup(view);
+  const level = m[1].length;
+  const next = level >= 3 ? 0 : level + 1;
+  const prefix = next ? '#'.repeat(next) + ' ' : '';
+  const markEnd = line.from + level + m[2].length;
+  if (m[3].trim() === '') {
+    view.dispatch({ changes: { from: line.from, to: line.to, insert: prefix }, selection: { anchor: line.from + prefix.length } });
+  } else {
+    const from = Math.max(sel.from, markEnd);
+    const to = Math.max(sel.to, markEnd);
+    view.dispatch({
+      changes: { from, to, insert: '\n' + prefix },
+      selection: { anchor: from + 1 + prefix.length },
+      scrollIntoView: true,
+    });
+  }
+  return true;
+}
+
+const quoteShortcut = (v) => { toggleQuote(v); return true; };
+
 // Insert one or more pasted/dropped/picked images as Markdown on their own lines.
 export function insertImageMarkdown(view, rels, pos) {
   const at = pos ?? view.state.selection.main.head;
@@ -344,9 +415,17 @@ export function insertImageMarkdown(view, rels, pos) {
   view.focus();
 }
 
-export function createEditor(parent, { onChange, onSelection, onFocusChange, onImageFiles }) {
+export function createEditor(parent, { onChange, onSelection, onFocusChange, onImageFiles, autoHeadingEnabled = () => true }) {
   const imageFiles = (list) => [...(list || [])].filter((f) => f.type.startsWith('image/'));
   const extensions = [
+    Prec.highest(
+      keymap.of([
+        { key: 'Shift-Enter', run: stepDownHeading },
+        { key: 'Mod-Shift-.', run: quoteShortcut }, // ⇧⌘. — the ">" key
+        { key: 'Mod->', run: quoteShortcut },
+      ])
+    ),
+    autoHeadingAboveList(autoHeadingEnabled),
     history(),
     drawSelection(),
     dropCursor(),

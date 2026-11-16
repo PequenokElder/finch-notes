@@ -206,7 +206,8 @@ ipcMain.handle('notes:create', async (_e, text = '') => {
 ipcMain.handle('notes:discardIfEmpty', async (_e, id) => {
   try {
     const p = notePath(id);
-    if ((await fsp.readFile(p, 'utf8')).trim() === '') await fsp.unlink(p);
+    // Blank, or just the empty "# " a new note starts with.
+    if (/^\s*(#{1,6}\s*)?$/.test(await fsp.readFile(p, 'utf8'))) await fsp.unlink(p);
   } catch {}
   return true;
 });
@@ -429,7 +430,7 @@ function buildMenu() {
         item('Heading 3', 'CmdOrCtrl+3', 'format:h3'),
         item('Body Text', 'CmdOrCtrl+Alt+0', 'format:p'),
         { type: 'separator' },
-        item('Block Quote', 'CmdOrCtrl+Alt+Q', 'format:quote'),
+        { ...item('Block Quote', 'CmdOrCtrl+Shift+.', 'format:quote'), registerAccelerator: false }, // key handled in the editor
         item('Code Block', 'CmdOrCtrl+Alt+C', 'format:codeblock'),
         item('Bulleted List', 'CmdOrCtrl+Shift+8', 'format:ul'),
         item('Numbered List', 'CmdOrCtrl+Shift+7', 'format:ol'),
