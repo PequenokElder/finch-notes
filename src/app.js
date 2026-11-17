@@ -293,12 +293,34 @@ async function refreshList() {
   renderSidebar();
 }
 
+// A note's id is its file name, which follows its title; pick up the new name when it changes.
+function adoptId(from, to) {
+  if (to && to !== from && currentId === from) {
+    currentId = to;
+    store.set('last', to);
+  }
+}
+
 async function flush() {
   clearTimeout(saveTimer);
   if (dirty && currentId) {
     dirty = false;
-    await api.write(currentId, view.state.doc.toString());
+    const id = currentId;
+    adoptId(id, await api.write(id, view.state.doc.toString()));
   }
+}
+
+// Keep the file name in step with the title, but only after you pause: no churn while you type a title.
+let renameTimer = null;
+let renamePending = false;
+async function renameNow() {
+  clearTimeout(renameTimer);
+  renamePending = false;
+  if (!currentId) return;
+  const id = currentId;
+  const rid = await api.rename(id, view.state.doc.toString());
+  adoptId(id, rid);
+  if (rid !== id) refreshList();
 }
 
 async function openNote(id) {
@@ -319,6 +341,7 @@ async function openNote(id) {
 async function leaveCurrent() {
   if (!currentId) return;
   await flush();
+  await renameNow();
   await api.discardIfEmpty(currentId); // abandoned blank notes disappear
   currentId = null;
 }
@@ -366,10 +389,13 @@ function scheduleSave() {
   dirty = true;
   setSaved(false);
   clearTimeout(saveTimer);
+  clearTimeout(renameTimer);
+  renamePending = true;
   saveTimer = setTimeout(async () => {
     await flush();
     setSaved(true);
     refreshList();
+    renameTimer = setTimeout(renameNow, 2500);
   }, 500);
 }
 
@@ -643,6 +669,7 @@ async function boot() {
   window.__finchView = view; // handy for debugging from DevTools
   window.__finchActions = actions;
   window.__finchApplyTheme = applyTheme;
+  window.__finchState = () => ({ id: currentId, dirty, doc: view.state.doc.toString().slice(0, 40) });
   window.__finchOpenSettings = openSettings;
 
   let statusTimer;
@@ -710,7 +737,9 @@ async function boot() {
 
   api.onMenu(handleMenu);
   window.addEventListener('beforeunload', () => {
+    // Quitting: save, and finish any rename that was waiting for you to pause.
     if (dirty && currentId) api.writeSync(currentId, view.state.doc.toString());
+    else if (renamePending && currentId) api.renameSync(currentId, view.state.doc.toString());
   });
   window.addEventListener('blur', () => flush());
 

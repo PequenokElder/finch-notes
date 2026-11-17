@@ -23,7 +23,7 @@ let NOTES_DIR =
 async function copyNotes(from, to) {
   await fsp.mkdir(to, { recursive: true });
   for (const f of await fsp.readdir(from)) {
-    if (/^[\w-]+\.md$/.test(f) || f === '.finch-pins.json' || f === 'attachments') {
+    if (isNoteFile(f) || f === '.finch-pins.json' || f === '.finch-names.json' || f === 'attachments') {
       await fsp.cp(path.join(from, f), path.join(to, f), { recursive: true, force: false, errorOnExist: false });
     }
   }
@@ -55,6 +55,7 @@ async function chooseNotesFolder() {
   writeConfig({ notesDir: target });
   NOTES_DIR = target;
   await seedIfEmpty();
+  tidyNames();
   mainWindow.webContents.reload(); // the UI re-reads the folder (and image paths) on load
 }
 
@@ -104,11 +105,131 @@ async function ensureDir() {
   await fsp.mkdir(NOTES_DIR, { recursive: true });
 }
 
+// Notes are named after their title, e.g. "Trip planning.md". The file name is the note's id.
+const isNoteFile = (f) =>
+  typeof f === 'string' && f.toLowerCase().endsWith('.md') && !f.startsWith('.') && !/[\\/\0]/.test(f) && f.length <= 200;
+
+// After a rename, a save that was already in flight may still use the old name: follow it to the new one.
+const aliases = new Map();
+function resolveId(id) {
+  let hops = 0;
+  while (typeof id === 'string' && aliases.has(id) && hops++ < 20 && !fs.existsSync(path.join(NOTES_DIR, id))) {
+    id = aliases.get(id);
+  }
+  return id;
+}
 function safeId(id) {
-  if (typeof id !== 'string' || !/^[\w-]+\.md$/.test(id)) throw new Error('Invalid note id');
+  id = resolveId(id);
+  if (!isNoteFile(id)) throw new Error('Invalid note id');
   return id;
 }
 const notePath = (id) => path.join(NOTES_DIR, safeId(id));
+
+// ---- Title-based file names ----
+const NAMES_FILE = () => path.join(NOTES_DIR, '.finch-names.json'); // names Finch chose (and so may keep up to date)
+function readNames() {
+  try { return new Set(JSON.parse(fs.readFileSync(NAMES_FILE(), 'utf8'))); } catch { return new Set(); }
+}
+function writeNames(set) {
+  try { fs.writeFileSync(NAMES_FILE(), JSON.stringify([...set])); } catch {}
+}
+const LEGACY_ID = /^[a-z0-9]{12}\.md$/; // the random names early versions used
+
+// The title a file should be named after: the H1, else the first heading, else a short phrase from the text.
+function fileTitle(text) {
+  let inFence = false;
+  let h1 = null, h = null, first = null, m;
+  for (const line of text.split('\n')) {
+    if (/^\s*(```|~~~)/.test(line)) { inFence = !inFence; continue; }
+    if (inFence) continue;
+    if ((m = line.match(/^#\s+(\S.*?)\s*#*\s*$/))) { h1 = m[1]; break; }
+    if (!h && (m = line.match(/^#{2,6}\s+(\S.*?)\s*#*\s*$/))) h = m[1];
+    if (!first) {
+      const t = cleanLine(line);
+      if (t && !/^[-*_=]{3,}$/.test(t) && !/^#[\p{L}\p{N}_\-/]+(\s+#[\p{L}\p{N}_\-/]+)*$/u.test(t)) first = t;
+    }
+  }
+  const strip = (t) => t.replace(/!?\[([^\]]*)\]\([^)]*\)/g, '$1').replace(/[*_`~]/g, '').replace(/\s+/g, ' ').trim().replace(/^title\s*:\s*/i, '');
+  if (h1 || h) {
+    const t = strip(h1 || h);
+    return t.length > 70 ? t.slice(0, 70).replace(/\s+\S*$/, '') || t.slice(0, 70) : t || 'Untitled';
+  }
+  if (first) {
+    // No heading: a short phrase for what the note is about (first sentence, at most 6 words).
+    const sentence = strip(first).split(/[.!?:;]\s/)[0].replace(/[.!?:;,]+$/, '');
+    // Don't end on a dangling word like "with" or "the".
+    const short = sentence.split(' ').slice(0, 6).join(' ').replace(/(\s+(a|an|the|and|or|of|to|for|in|on|at|with|by|from|is|are|was))+$/i, '');
+    return (short.length > 50 ? short.slice(0, 50).replace(/\s+\S*$/, '') : short) || 'Untitled';
+  }
+  return 'Untitled';
+}
+
+// Make a title safe as a file name on macOS, Windows and Dropbox.
+function sanitizeFileName(title) {
+  let n = title
+    .replace(/[\\/|]/g, '-')
+    .replace(/[:*?"<>\x00-\x1f]/g, '')
+    .replace(/\s+/g, ' ')
+    .replace(/^[.\s]+/, '')
+    .replace(/[.\s]+$/, '')
+    .slice(0, 70)
+    .replace(/[.\s]+$/, '');
+  if (!n) n = 'Untitled';
+  if (/^(con|prn|aux|nul|com\d|lpt\d)$/i.test(n)) n += ' note';
+  return n;
+}
+
+// "Title.md", or "Title 2.md", "Title 3.md" if that name is taken (case-insensitive, like macOS).
+function uniqueName(base, selfId) {
+  let taken;
+  try { taken = new Set(fs.readdirSync(NOTES_DIR).map((f) => f.toLowerCase())); } catch { taken = new Set(); }
+  if (selfId) taken.delete(selfId.toLowerCase());
+  let name = `${base}.md`;
+  for (let i = 2; taken.has(name.toLowerCase()); i++) name = `${base} ${i}.md`;
+  return name;
+}
+
+function movePin(from, to) {
+  try {
+    const pins = new Set(JSON.parse(fs.readFileSync(path.join(NOTES_DIR, '.finch-pins.json'), 'utf8')));
+    if (pins.delete(from)) {
+      pins.add(to);
+      fs.writeFileSync(path.join(NOTES_DIR, '.finch-pins.json'), JSON.stringify([...pins]));
+    }
+  } catch {}
+}
+
+// Rename a note to match its title, but only if Finch named it (never touch a file you renamed yourself).
+function autoRename(id, text) {
+  id = resolveId(id);
+  if (!isNoteFile(id) || !fs.existsSync(path.join(NOTES_DIR, id))) return id;
+  const names = readNames();
+  if (!names.has(id) && !LEGACY_ID.test(id)) return id;
+  const base = sanitizeFileName(fileTitle(text));
+  const current = id.replace(/\.md$/i, '');
+  // Already named for this title (allowing a " 2" style suffix added to avoid a clash).
+  const escaped = base.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  if (current === base || new RegExp(`^${escaped} \\d+$`).test(current)) return id;
+  const target = uniqueName(base, id);
+  if (target === id) return id;
+  fs.renameSync(path.join(NOTES_DIR, id), path.join(NOTES_DIR, target));
+  names.delete(id);
+  names.add(target);
+  writeNames(names);
+  movePin(id, target);
+  aliases.set(id, target);
+  return target;
+}
+
+// On launch: rename legacy random names, and fix any name that drifted from its title (e.g. quit mid-edit).
+function tidyNames() {
+  try {
+    const names = readNames();
+    for (const f of fs.readdirSync(NOTES_DIR)) {
+      if (isNoteFile(f) && (LEGACY_ID.test(f) || names.has(f))) autoRename(f, fs.readFileSync(path.join(NOTES_DIR, f), 'utf8'));
+    }
+  } catch {}
+}
 
 const MD_STRIP = /^\s{0,3}(#{1,6}\s+|>\s*|[-*+]\s+(\[[ xX]\]\s+)?|\d+[.)]\s+)*/;
 function cleanLine(line) {
@@ -160,7 +281,7 @@ async function readPins() {
 async function listNotes(query) {
   await ensureDir();
   const pins = await readPins();
-  const files = (await fsp.readdir(NOTES_DIR)).filter((f) => /^[\w-]+\.md$/.test(f));
+  const files = (await fsp.readdir(NOTES_DIR)).filter(isNoteFile);
   const q = (query || '').trim().toLowerCase();
   const notes = await Promise.all(
     files.map(async (id) => {
@@ -174,14 +295,21 @@ async function listNotes(query) {
   return notes.filter(Boolean).sort((a, b) => (b.pinned - a.pinned) || (b.mtime - a.mtime));
 }
 
-function newId() {
-  return `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}.md`;
+// Create a note file named after its title; Finch keeps the name in step with the title afterwards.
+function createNoteFile(text) {
+  const id = uniqueName(sanitizeFileName(fileTitle(text)));
+  fs.writeFileSync(path.join(NOTES_DIR, id), text, 'utf8');
+  const names = readNames();
+  names.add(id);
+  writeNames(names);
+  aliases.delete(id);
+  return id;
 }
 
 async function seedIfEmpty() {
   await ensureDir();
-  const files = (await fsp.readdir(NOTES_DIR)).filter((f) => f.endsWith('.md'));
-  if (files.length === 0) await fsp.writeFile(path.join(NOTES_DIR, newId()), WELCOME);
+  const files = (await fsp.readdir(NOTES_DIR)).filter(isNoteFile);
+  if (files.length === 0) createNoteFile(WELCOME);
 }
 
 // ---------- IPC ----------
@@ -189,18 +317,24 @@ async function seedIfEmpty() {
 ipcMain.handle('notes:list', (_e, q) => listNotes(q));
 ipcMain.handle('notes:read', (_e, id) => fsp.readFile(notePath(id), 'utf8'));
 ipcMain.handle('notes:write', async (_e, id, text) => {
-  await fsp.writeFile(notePath(id), text, 'utf8');
-  return true;
+  const rid = safeId(id);
+  await fsp.writeFile(path.join(NOTES_DIR, rid), text, 'utf8');
+  return rid; // may differ from `id` if the note was renamed since the renderer last heard
+});
+ipcMain.handle('notes:rename', (_e, id, text) => autoRename(id, text));
+ipcMain.on('notes:renameSync', (e, id, text) => {
+  try { e.returnValue = autoRename(id, text); } catch { e.returnValue = id; }
 });
 ipcMain.on('notes:writeSync', (e, id, text) => {
-  try { fs.writeFileSync(notePath(id), text, 'utf8'); } catch {}
+  try {
+    fs.writeFileSync(notePath(id), text, 'utf8');
+    autoRename(id, text); // quitting leaves the file named after its title
+  } catch {}
   e.returnValue = true;
 });
 ipcMain.handle('notes:create', async (_e, text = '') => {
   await ensureDir();
-  const id = newId();
-  await fsp.writeFile(path.join(NOTES_DIR, id), text, 'utf8');
-  return id;
+  return createNoteFile(text);
 });
 // Remove a note only if it is still empty (used when abandoning a blank new note).
 ipcMain.handle('notes:discardIfEmpty', async (_e, id) => {
@@ -464,6 +598,7 @@ function buildMenu() {
 
 app.whenReady().then(async () => {
   await seedIfEmpty();
+  tidyNames();
   if (process.env.FINCH_THEME) nativeTheme.themeSource = process.env.FINCH_THEME; // dev/test only
   buildMenu();
   const devIcon = path.join(__dirname, '..', 'build', 'icon.png');

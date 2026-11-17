@@ -4,6 +4,8 @@ contextBridge.exposeInMainWorld('finch', {
   list: (q) => ipcRenderer.invoke('notes:list', q),
   read: (id) => ipcRenderer.invoke('notes:read', id),
   write: (id, text) => ipcRenderer.invoke('notes:write', id, text),
+  rename: (id, text) => ipcRenderer.invoke('notes:rename', id, text),
+  renameSync: (id, text) => ipcRenderer.sendSync('notes:renameSync', id, text),
   writeSync: (id, text) => ipcRenderer.sendSync('notes:writeSync', id, text),
   create: (text) => ipcRenderer.invoke('notes:create', text),
   discardIfEmpty: (id) => ipcRenderer.invoke('notes:discardIfEmpty', id),
