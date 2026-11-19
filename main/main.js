@@ -435,6 +435,7 @@ ipcMain.handle('pdf:export', async (e, { html, name, pageNumbers }) => {
 let mainWindow;
 
 function send(action) {
+  if (process.env.FINCH_SNAPSHOT) console.log('[menu fired]', action);
   if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('menu', action);
 }
 
@@ -529,7 +530,7 @@ function buildMenu() {
           label: 'Show Notes Folder',
           click: () => shell.openPath(NOTES_DIR),
         },
-        item('Move Note to Trash…', 'CmdOrCtrl+Backspace', 'delete'),
+        item('Move Note to Trash…', 'CmdOrCtrl+Shift+Backspace', 'delete'),
         { type: 'separator' },
         { role: 'close' },
       ],
@@ -570,7 +571,7 @@ function buildMenu() {
         item('Numbered List', 'CmdOrCtrl+Shift+7', 'format:ol'),
         item('Checklist', 'CmdOrCtrl+Shift+T', 'format:task'),
         { type: 'separator' },
-        item('Insert Divider', 'CmdOrCtrl+Alt+H', 'format:hr'),
+        item('Insert Divider', 'CmdOrCtrl+Shift+H', 'format:hr'),
         item('Insert Table', 'CmdOrCtrl+Alt+T', 'format:table'),
         item('Insert Image…', 'CmdOrCtrl+Shift+M', 'format:image'),
       ],
@@ -579,7 +580,7 @@ function buildMenu() {
       label: 'View',
       submenu: [
         item('Cycle Preview (Edit / Split / Preview)', 'CmdOrCtrl+Shift+P', 'preview'),
-        item('Toggle Sidebar', 'CmdOrCtrl+\\', 'sidebar'),
+        item('Toggle Sidebar', 'CmdOrCtrl+Alt+S', 'sidebar'),
         { type: 'separator' },
         item('Zoom In', 'CmdOrCtrl+=', 'zoom-in'),
         { ...item('Zoom In', 'CmdOrCtrl+Plus', 'zoom-in'), visible: false },
@@ -607,6 +608,9 @@ app.whenReady().then(async () => {
 
   // Dev/test hook: FINCH_SNAPSHOT=/path.png captures the window after load, then quits.
   if (process.env.FINCH_SNAPSHOT) {
+    mainWindow.webContents.on('before-input-event', (_e, i) => {
+      if (i.type === 'keyDown' && (i.meta || i.control)) console.log('[key reached page]', i.key, i.meta ? 'cmd' : '', i.shift ? 'shift' : '', i.alt ? 'alt' : '');
+    });
     mainWindow.webContents.on('console-message', (_e, _lvl, msg) => console.log('[renderer]', msg));
     mainWindow.webContents.once('did-finish-load', () => {
       setTimeout(async () => {
@@ -639,6 +643,7 @@ app.whenReady().then(async () => {
             }
             await sleep(300);
           }
+          if (process.env.FINCH_HOLD) await new Promise((r) => setTimeout(r, Number(process.env.FINCH_HOLD))); // time for external (system) keystrokes
           if (process.env.FINCH_AFTER_JS) await mainWindow.webContents.executeJavaScript(process.env.FINCH_AFTER_JS);
           const img = await mainWindow.webContents.capturePage();
           fs.writeFileSync(process.env.FINCH_SNAPSHOT, img.toPNG());

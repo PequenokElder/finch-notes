@@ -79,28 +79,28 @@ const TOOLBAR = [
   ['format:ol', { icon: 'ol' }, 'Numbered list (⇧⌘7)'],
   ['format:task', { icon: 'task' }, 'Checklist (⇧⌘T)'],
   '|',
-  ['format:hr', { icon: 'hr' }, 'Divider (⌥⌘H)'],
+  ['format:hr', { icon: 'hr' }, 'Divider (⇧⌘H)'],
   ['format:table', { icon: 'table' }, 'Table (⌥⌘T)'],
-  ['format:image', { icon: 'image' }, 'Insert image (⇧⌘M) — or paste / drag one in'],
+  ['format:image', { icon: 'image' }, 'Insert image (⇧⌘M) — or paste or drag one in'],
 ];
 
 // Compact set shown when you highlight text.
 const FLOAT = [
-  ['format:h1', 'H1', 'Heading 1'],
-  ['format:h2', 'H2', 'Heading 2'],
-  ['format:h3', 'H3', 'Heading 3'],
+  ['format:h1', 'H1', 'Heading 1 (⌘1)'],
+  ['format:h2', 'H2', 'Heading 2 (⌘2)'],
+  ['format:h3', 'H3', 'Heading 3 (⌘3)'],
   '|',
-  ['format:bold', { icon: 'bold' }, 'Bold'],
-  ['format:italic', { icon: 'italic' }, 'Italic'],
-  ['format:strike', { icon: 'strike' }, 'Strikethrough'],
-  ['format:code', { icon: 'code' }, 'Inline code'],
-  ['format:link', { icon: 'link' }, 'Link'],
+  ['format:bold', { icon: 'bold' }, 'Bold (⌘B)'],
+  ['format:italic', { icon: 'italic' }, 'Italic (⌘I)'],
+  ['format:strike', { icon: 'strike' }, 'Strikethrough (⇧⌘X)'],
+  ['format:code', { icon: 'code' }, 'Inline code (⌘E)'],
+  ['format:link', { icon: 'link' }, 'Link (⌘K)'],
   '|',
-  ['format:quote', { icon: 'quote' }, 'Block quote'],
-  ['format:ul', { icon: 'ul' }, 'Bulleted list'],
-  ['format:ol', { icon: 'ol' }, 'Numbered list'],
-  ['format:task', { icon: 'task' }, 'Checklist'],
-  ['format:codeblock', { icon: 'codeblock' }, 'Code block'],
+  ['format:quote', { icon: 'quote' }, 'Block quote (⇧⌘.)'],
+  ['format:ul', { icon: 'ul' }, 'Bulleted list (⇧⌘8)'],
+  ['format:ol', { icon: 'ol' }, 'Numbered list (⇧⌘7)'],
+  ['format:task', { icon: 'task' }, 'Checklist (⇧⌘T)'],
+  ['format:codeblock', { icon: 'codeblock' }, 'Code block (⌥⌘C)'],
 ];
 
 function buildBar(container, spec, btnClass, sepClass) {
@@ -132,7 +132,7 @@ function buildToolbar() {
   const tb = $('#toolbar');
   const sb = document.createElement('button');
   sb.className = 'tb-btn';
-  sb.title = 'Toggle sidebar (⌘\\)';
+  sb.title = 'Toggle sidebar (⌥⌘S)';
   sb.innerHTML = icon('sidebar');
   sb.addEventListener('click', toggleSidebar);
   tb.appendChild(sb);
@@ -162,7 +162,7 @@ function buildToolbar() {
   mk('btn-pin', 'pin', 'Pin note (⇧⌘D)', togglePin);
   mk('btn-preview', 'eye', 'Preview (⇧⌘P)', cyclePreview);
   mk('btn-export', 'export', 'Export as PDF (⇧⌘E)', toggleExportPop);
-  mk('btn-trash', 'trash', 'Move note to Trash (⌘⌫)', deleteCurrent);
+  mk('btn-trash', 'trash', 'Move note to Trash (⇧⌘⌫)', deleteCurrent);
 }
 
 // ---------- floating selection toolbar ----------
@@ -576,6 +576,89 @@ function closeSettings() {
   view?.focus();
 }
 
+// ---------- hover tooltips with keyboard shortcuts ----------
+// Any element with a title like "Bold (⌘B)" gets a styled tooltip showing the shortcut as keycaps.
+
+const tipEl = document.createElement('div');
+tipEl.id = 'tip';
+tipEl.hidden = true;
+document.body.appendChild(tipEl);
+let tipTimer = null;
+let tipTarget = null;
+
+function parseTip(text) {
+  const m = text.match(/^(.*?)\s*\(([⌘⇧⌥⌃][^)]*)\)\s*(?:—\s*(.*))?$/);
+  return m ? { name: m[1], keys: m[2], note: m[3] || '' } : { name: text, keys: '', note: '' };
+}
+
+function showTip(el) {
+  const raw = el.dataset.tip;
+  if (!raw) return;
+  const { name, keys, note } = parseTip(raw);
+  tipEl.innerHTML = '';
+  const row = document.createElement('div');
+  row.className = 'tip-row';
+  const label = document.createElement('span');
+  label.className = 'tip-name';
+  label.textContent = name;
+  row.appendChild(label);
+  if (keys) {
+    const caps = document.createElement('span');
+    caps.className = 'tip-keys';
+    // Each modifier glyph is its own keycap; whatever follows is the key itself.
+    const mods = [...keys].filter((c, i) => i < keys.length && '⌘⇧⌥⌃'.includes(c) && [...keys].slice(0, i).every((p) => '⌘⇧⌥⌃'.includes(p)));
+    const rest = [...keys].slice(mods.length).join('');
+    for (const k of [...mods, rest].filter(Boolean)) {
+      const kbd = document.createElement('kbd');
+      kbd.textContent = k;
+      caps.appendChild(kbd);
+    }
+    row.appendChild(caps);
+  }
+  tipEl.appendChild(row);
+  if (note) {
+    const n = document.createElement('div');
+    n.className = 'tip-note';
+    n.textContent = note;
+    tipEl.appendChild(n);
+  }
+  tipEl.hidden = false;
+  const r = el.getBoundingClientRect();
+  const w = tipEl.offsetWidth;
+  const h = tipEl.offsetHeight;
+  let left = Math.min(Math.max(r.left + r.width / 2 - w / 2, 8), window.innerWidth - w - 8);
+  const above = el.closest('#float-bar') || r.bottom + h + 12 > window.innerHeight;
+  const top = above ? r.top - h - 8 : r.bottom + 8;
+  tipEl.style.left = left + 'px';
+  tipEl.style.top = Math.max(4, top) + 'px';
+}
+
+function hideTip() {
+  clearTimeout(tipTimer);
+  tipTarget = null;
+  tipEl.hidden = true;
+}
+
+function setupTooltips() {
+  document.addEventListener('mouseover', (e) => {
+    const el = e.target.closest('[title], [data-tip]');
+    if (!el || el === tipTarget || el.closest('#tip')) return;
+    // Take over the native tooltip: move title -> data-tip so the browser's own doesn't also appear.
+    if (el.hasAttribute('title')) {
+      el.dataset.tip = el.getAttribute('title');
+      el.removeAttribute('title');
+    }
+    if (!el.dataset.tip) return;
+    hideTip();
+    tipTarget = el;
+    tipTimer = setTimeout(() => showTip(el), 350);
+  });
+  document.addEventListener('mouseout', (e) => {
+    if (tipTarget && !tipTarget.contains(e.relatedTarget)) hideTip();
+  });
+  for (const ev of ['mousedown', 'keydown', 'wheel', 'scroll']) document.addEventListener(ev, hideTip, true);
+}
+
 // ---------- zoom ----------
 
 const ZOOM_MIN = 0.7, ZOOM_MAX = 2.0;
@@ -625,6 +708,7 @@ async function boot() {
   document.head.appendChild(docStyle);
 
   buildToolbar();
+  setupTooltips();
   buildBar(floatBar, FLOAT, 'fb-btn', 'fb-sep');
   $('#new-note').innerHTML = icon('plus');
   $('#open-settings').innerHTML = icon('gear') + '<span>Settings</span>';

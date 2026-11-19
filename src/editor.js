@@ -26,7 +26,7 @@ import { css } from '@codemirror/lang-css';
 import { html } from '@codemirror/lang-html';
 import { json } from '@codemirror/lang-json';
 import { resolveImageSrc } from './images.js';
-import { toggleQuote } from './format.js';
+import * as fmt from './format.js';
 
 // ---------- code-fence languages ----------
 
@@ -404,7 +404,29 @@ function stepDownHeading(view) {
   return true;
 }
 
-const quoteShortcut = (v) => { toggleQuote(v); return true; };
+// Formatting shortcuts are handled here, inside the editor, so nothing in the editor's own keymap can
+// swallow them (CodeMirror claims ⌘I for "expand selection", for example). The native menu shows the same
+// keys as hints, and still handles them when the editor isn't focused.
+const cmd = (fn) => (v) => { fn(v); return true; };
+const FORMAT_KEYS = [
+  ['Mod-b', cmd((v) => fmt.toggleInline(v, '**'))],
+  ['Mod-i', cmd((v) => fmt.toggleInline(v, '_'))],
+  ['Mod-Shift-x', cmd((v) => fmt.toggleInline(v, '~~'))],
+  ['Mod-e', cmd((v) => fmt.toggleInline(v, '`'))],
+  ['Mod-k', cmd(fmt.link)],
+  ['Mod-1', cmd((v) => fmt.setHeading(v, 1))],
+  ['Mod-2', cmd((v) => fmt.setHeading(v, 2))],
+  ['Mod-3', cmd((v) => fmt.setHeading(v, 3))],
+  ['Mod-Alt-0', cmd((v) => fmt.setHeading(v, 0))],
+  ['Mod-Shift-.', cmd(fmt.toggleQuote)], // ⇧⌘. — the ">" key
+  ['Mod->', cmd(fmt.toggleQuote)],
+  ['Mod-Alt-c', cmd(fmt.codeBlock)],
+  ['Mod-Shift-8', cmd((v) => fmt.setList(v, 'bullet'))],
+  ['Mod-Shift-7', cmd((v) => fmt.setList(v, 'ordered'))],
+  ['Mod-Shift-t', cmd((v) => fmt.setList(v, 'task'))],
+  ['Mod-Shift-h', cmd(fmt.insertDivider)],
+  ['Mod-Alt-t', cmd(fmt.insertTable)],
+].map(([key, run]) => ({ key, run }));
 
 // Insert one or more pasted/dropped/picked images as Markdown on their own lines.
 export function insertImageMarkdown(view, rels, pos) {
@@ -424,8 +446,7 @@ export function createEditor(parent, { onChange, onSelection, onFocusChange, onI
     Prec.highest(
       keymap.of([
         { key: 'Shift-Enter', run: stepDownHeading },
-        { key: 'Mod-Shift-.', run: quoteShortcut }, // ⇧⌘. — the ">" key
-        { key: 'Mod->', run: quoteShortcut },
+        ...FORMAT_KEYS,
       ])
     ),
     autoHeadingAboveList(autoHeadingEnabled),
