@@ -3,6 +3,8 @@ import { openSearchPanel } from '@codemirror/search';
 import { createEditor, loadText, insertImageMarkdown } from './editor.js';
 window.__finchEditorKit = { createEditor, loadText }; // for test harnesses
 import { setImageBase } from './images.js';
+import { TEMPLATES } from './templates.js';
+import { tableCellFormat, parseTable, serializeTable } from './tables.js';
 import { renderMarkdown, buildPdfHtml, DOC_CSS } from './render.js';
 import * as fmt from './format.js';
 
@@ -374,6 +376,25 @@ async function newNote() {
   view.focus();
 }
 
+// Create a new note from a built-in template and open it.
+async function newFromTemplate(templateId) {
+  const tpl = TEMPLATES.find((t) => t.id === templateId);
+  if (!tpl) return;
+  await leaveCurrent();
+  query = '';
+  $('#search').value = '';
+  activeTag = null;
+  const id = await api.create(tpl.text);
+  currentId = id;
+  store.set('last', id);
+  loadText(view, tpl.text);
+  await refreshList();
+  renderPreview();
+  updateStatus();
+  view.dispatch({ selection: { anchor: 0 }, scrollIntoView: true });
+  view.focus();
+}
+
 async function deleteCurrent() {
   if (!currentId) return;
   await flush();
@@ -677,7 +698,9 @@ const zoomBy = (d) => setZoom(zoom + d);
 // ---------- menu bridge ----------
 
 function handleMenu(action) {
+  if (action.startsWith('format:') && tableCellFormat(action)) return; // a table cell is being edited
   if (actions[action]) return actions[action]();
+  if (action.startsWith('template:')) return newFromTemplate(action.slice('template:'.length));
   switch (action) {
     case 'new': return newNote();
     case 'delete': return deleteCurrent();
@@ -754,6 +777,8 @@ async function boot() {
   window.__finchView = view; // handy for debugging from DevTools
   window.__finchActions = actions;
   window.__finchApplyTheme = applyTheme;
+  window.__finchMenu = handleMenu;
+  window.__finchTables = { parseTable, serializeTable };
   window.__finchState = () => ({ id: currentId, dirty, doc: view.state.doc.toString().slice(0, 40) });
   window.__finchOpenSettings = openSettings;
 

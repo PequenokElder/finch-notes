@@ -6,7 +6,7 @@ const options = {
   outfile: 'renderer/dist/app.js',
   format: 'iife',
   target: 'chrome130',
-  loader: { '.css': 'text' },
+  loader: { '.css': 'text', '.md': 'text' },
   logLevel: 'info',
   minify: false,
 };

@@ -1,6 +1,7 @@
 // Markdown formatting commands. Every command takes an EditorView and edits the selection.
 import { EditorSelection } from '@codemirror/state';
 import { syntaxTree } from '@codemirror/language';
+import { queueTableFocus } from './tables.js';
 
 // ---------- helpers ----------
 
@@ -268,5 +269,8 @@ export function insertDivider(view) {
 
 export function insertTable(view) {
   const block = '| Column 1 | Column 2 | Column 3 |\n| --- | --- | --- |\n|  |  |  |\n|  |  |  |\n';
+  const line = view.state.doc.lineAt(view.state.selection.main.to);
+  const start = line.to + (line.text.trim() ? 2 : 1); // where the table will begin (see insertBlock)
   insertBlock(view, block, 2, 'Column 1'.length);
+  queueTableFocus(view, start);
 }

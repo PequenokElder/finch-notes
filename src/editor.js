@@ -35,6 +35,7 @@ import { shell } from '@codemirror/legacy-modes/mode/shell';
 import { swift } from '@codemirror/legacy-modes/mode/swift';
 import { resolveImageSrc } from './images.js';
 import * as fmt from './format.js';
+import { tableField } from './tables.js';
 
 // ---------- code-fence languages ----------
 
@@ -286,6 +287,7 @@ function buildDecorations(view) {
           const l1 = doc.lineAt(node.from).number;
           const l2 = doc.lineAt(node.to).number;
           for (let n = l1; n <= l2; n++) lineDeco(doc.line(n).from, 'cm-table-row');
+          return false; // the table widget draws the cells
         } else if (name === 'ListMark') {
           const line = doc.lineAt(node.from);
           // A lone "-" or "1." (no space yet) is not finished: keep it visible as typed, so it doesn't
@@ -466,6 +468,7 @@ export function createEditor(parent, { onChange, onSelection, onFocusChange, onI
       ])
     ),
     autoHeadingAboveList(autoHeadingEnabled),
+    tableField,
     history(),
     drawSelection(),
     dropCursor(),

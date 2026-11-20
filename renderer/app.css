@@ -227,6 +227,39 @@ button, input, select { font-family: inherit; font-size: inherit; color: inherit
 
 .cm-image { display: inline-block; max-width: 100%; max-height: 460px; border-radius: 9px; vertical-align: bottom; margin: 0.3em 0; box-shadow: 0 0 0 1px var(--rule); }
 
+/* Live tables */
+.cm-tbl-wrap { position: relative; padding-top: 30px; margin: 2px 0 10px; user-select: none; }
+.cm-tbl-bar {
+  position: absolute; top: 0; left: 0; right: 0; height: 26px; display: flex; flex-wrap: nowrap; align-items: center; gap: 1px;
+  opacity: 0; transition: opacity 0.12s; pointer-events: none; overflow: hidden;
+}
+.cm-tbl-wrap:hover .cm-tbl-bar, .cm-tbl-wrap:focus-within .cm-tbl-bar { opacity: 1; pointer-events: auto; }
+.cm-tbl-bar button {
+  border: 0; background: transparent; color: var(--text-muted); font: 600 11.5px var(--sans); height: 24px;
+  padding: 0 7px; border-radius: 6px; cursor: default; white-space: nowrap;
+}
+.cm-tbl-bar button:hover { background: var(--hover); color: var(--text); }
+.cm-tbl-bar button.on { color: var(--accent-ink); background: var(--accent-wash); }
+.cm-tbl-bar .sep { width: 1px; height: 14px; background: var(--rule); margin: 0 4px; flex: none; }
+.cm-tbl-scroll { overflow-x: auto; border: 1px solid var(--rule); border-radius: 10px; }
+table.cm-tbl { border-collapse: collapse; width: 100%; font-size: 0.94em; line-height: 1.5; }
+.cm-tbl th, .cm-tbl td { border-right: 1px solid var(--rule); border-bottom: 1px solid var(--rule); padding: 0; vertical-align: top; min-width: 64px; }
+.cm-tbl th:last-child, .cm-tbl td:last-child { border-right: 0; }
+.cm-tbl tbody tr:last-child td { border-bottom: 0; }
+.cm-tbl th { background: var(--code-bg); font-weight: 650; text-align: left; }
+.cm-tbl-view, .cm-tbl-cell { padding: 7px 12px; min-height: 2.3em; margin: 0; font: inherit; line-height: inherit; text-align: inherit; }
+.cm-tbl-view { display: block; white-space: pre-wrap; overflow-wrap: anywhere; cursor: text; }
+.cm-tbl-view code { background: var(--code-bg); border-radius: 4px; padding: 0.1em 0.3em; font-family: var(--mono); font-size: 0.9em; }
+.cm-tbl th .cm-tbl-view code { background: rgba(127, 127, 127, 0.18); }
+.cm-tbl-view a { color: var(--accent-ink); text-decoration: underline; }
+.cm-tbl-cell {
+  display: none; width: 100%; box-sizing: border-box; border: 0; outline: 0; background: transparent; color: inherit;
+  resize: none; field-sizing: content; overflow: hidden; user-select: text;
+}
+.cm-tbl td.editing .cm-tbl-cell, .cm-tbl th.editing .cm-tbl-cell { display: block; }
+.cm-tbl td.editing .cm-tbl-view, .cm-tbl th.editing .cm-tbl-view { display: none; }
+.cm-tbl td.editing, .cm-tbl th.editing { background: var(--accent-wash); box-shadow: inset 0 0 0 2px var(--accent); }
+
 /* Find panel */
 .cm-panels { background: var(--sidebar); border-color: var(--border) !important; color: var(--text); font-size: 13px; }
 .cm-panels input, .cm-panels button { font-size: 12.5px; }

@@ -67,6 +67,11 @@ function stripTagLines(md) {
     .join('\n');
 }
 
+// Inline Markdown only (bold, italic, code, links…), used inside table cells.
+export function renderInline(md) {
+  try { return marked.parseInline(md, { async: false }); } catch { return escapeHtml(md); }
+}
+
 export function renderMarkdown(md) {
   return marked.parse(stripTagLines(md), { async: false });
 }

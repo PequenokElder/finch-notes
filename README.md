@@ -35,6 +35,7 @@ Set `FINCH_NOTES_DIR=/some/folder` to override the folder for a single run.
 - New notes start as a **Heading 1**. **Shift+Enter** steps down: H1 → H2 → H3 → body text (on an empty heading it cycles in place).
 - Lists keep their bullets/numbers as you type: Enter continues the list, Enter on an empty item ends it. **⇧⌘.** makes a block quote.
 - Start a list under a short heading-like line and that line becomes a **Heading 2** automatically (⌘Z undoes it; toggle in Settings).
+- **Tables are live and editable**: click a cell to type, Tab/Enter to move (and add rows), and use the bar above the table to add/delete rows and columns, align columns, or delete the table. The file stays plain Markdown.
 - Every command is also in the **Format** menu with its shortcut.
 - **⌘, Settings** has eight themes (Goldfinch, Nightingale, Snowfinch, Blackbird, Bluebird, Meadowlark, Cardinal, Twilight Swallow) plus Auto.
 - Zoom with ⌘+ / ⌘− / ⌘0, pinch, or the status bar. Pin notes with ⇧⌘D. Paste or drag images straight into a note.

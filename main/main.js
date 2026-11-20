@@ -531,6 +531,7 @@ function buildMenu() {
       submenu: [
         item('New Note', 'CmdOrCtrl+N', 'new'),
         item('Pin / Unpin Note', 'CmdOrCtrl+Shift+D', 'pin'),
+        { label: 'New from Template', submenu: [item('Markdown Showcase', undefined, 'template:showcase')] },
         item('Export as PDF…', 'CmdOrCtrl+Shift+E', 'export'),
         { type: 'separator' },
         { label: 'Choose Notes Folder…', click: () => chooseNotesFolder() },
@@ -654,6 +655,11 @@ app.whenReady().then(async () => {
           }
           if (process.env.FINCH_HOLD) await new Promise((r) => setTimeout(r, Number(process.env.FINCH_HOLD))); // time for external (system) keystrokes
           if (process.env.FINCH_AFTER_JS) await mainWindow.webContents.executeJavaScript(process.env.FINCH_AFTER_JS);
+          if (process.env.FINCH_DUMP_MENU) {
+            const fileMenu = Menu.getApplicationMenu().items.find((i) => i.label === 'File');
+            const walk = (items, d = 0) => items.forEach((i) => { console.log('[menu]', ' '.repeat(d * 2) + (i.label || '---'), i.accelerator ? `(${i.accelerator})` : ''); if (i.submenu) walk(i.submenu.items, d + 1); });
+            walk(fileMenu.submenu.items);
+          }
           // FINCH_SHOTS: JSON [{js, wait, out}] — run JS then save a screenshot, several times in one launch.
           if (process.env.FINCH_SHOTS) {
             for (const shot of JSON.parse(process.env.FINCH_SHOTS)) {
