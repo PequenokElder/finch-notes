@@ -15,6 +15,7 @@ import {
   syntaxHighlighting,
   HighlightStyle,
   LanguageDescription,
+  LanguageSupport,
   indentOnInput,
 } from '@codemirror/language';
 import { markdown, markdownLanguage, insertNewlineContinueMarkup } from '@codemirror/lang-markdown';
@@ -25,6 +26,13 @@ import { python } from '@codemirror/lang-python';
 import { css } from '@codemirror/lang-css';
 import { html } from '@codemirror/lang-html';
 import { json } from '@codemirror/lang-json';
+import { yaml } from '@codemirror/lang-yaml';
+import { sql } from '@codemirror/lang-sql';
+import { go } from '@codemirror/lang-go';
+import { rust } from '@codemirror/lang-rust';
+import { StreamLanguage } from '@codemirror/language';
+import { shell } from '@codemirror/legacy-modes/mode/shell';
+import { swift } from '@codemirror/legacy-modes/mode/swift';
 import { resolveImageSrc } from './images.js';
 import * as fmt from './format.js';
 
@@ -37,6 +45,12 @@ const codeLanguages = [
   LanguageDescription.of({ name: 'css', alias: [], support: css() }),
   LanguageDescription.of({ name: 'html', alias: ['xml', 'svg'], support: html() }),
   LanguageDescription.of({ name: 'json', alias: [], support: json() }),
+  LanguageDescription.of({ name: 'bash', alias: ['sh', 'shell', 'zsh', 'console', 'terminal'], support: new LanguageSupport(StreamLanguage.define(shell)) }),
+  LanguageDescription.of({ name: 'yaml', alias: ['yml'], support: yaml() }),
+  LanguageDescription.of({ name: 'sql', alias: ['mysql', 'postgres', 'sqlite'], support: sql() }),
+  LanguageDescription.of({ name: 'swift', alias: [], support: new LanguageSupport(StreamLanguage.define(swift)) }),
+  LanguageDescription.of({ name: 'go', alias: ['golang'], support: go() }),
+  LanguageDescription.of({ name: 'rust', alias: ['rs'], support: rust() }),
 ];
 
 // ---------- syntax colours (themed through CSS variables in app.css) ----------
@@ -52,7 +66,9 @@ const highlightStyle = HighlightStyle.define([
   { tag: t.quote, color: 'var(--text-muted)' },
   { tag: [t.keyword, t.operatorKeyword, t.modifier], color: 'var(--c-keyword)' },
   { tag: [t.string, t.special(t.string)], color: 'var(--c-string)' },
-  { tag: [t.number, t.bool, t.null], color: 'var(--c-number)' },
+  { tag: [t.number, t.bool, t.null, t.atom, t.integer, t.float], color: 'var(--c-number)' },
+  { tag: [t.variableName, t.special(t.variableName)], color: 'var(--c-prop)' },
+  { tag: [t.definition(t.variableName)], color: 'var(--c-fn)' },
   { tag: [t.comment, t.lineComment, t.blockComment], color: 'var(--text-faint)', fontStyle: 'italic' },
   { tag: [t.function(t.variableName), t.function(t.propertyName), t.labelName], color: 'var(--c-fn)' },
   { tag: [t.typeName, t.className, t.tagName], color: 'var(--c-type)' },

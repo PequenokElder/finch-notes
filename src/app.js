@@ -1,6 +1,7 @@
 import { undo, redo } from '@codemirror/commands';
 import { openSearchPanel } from '@codemirror/search';
 import { createEditor, loadText, insertImageMarkdown } from './editor.js';
+window.__finchEditorKit = { createEditor, loadText }; // for test harnesses
 import { setImageBase } from './images.js';
 import { renderMarkdown, buildPdfHtml, DOC_CSS } from './render.js';
 import * as fmt from './format.js';

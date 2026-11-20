@@ -6,6 +6,12 @@ const fsp = fs.promises;
 
 app.setName('Finch');
 
+// Automated test runs (FINCH_SNAPSHOT) are isolated from the real app: their own settings profile, and unless
+// they need real keystrokes, a hidden window with no Dock icon, so they never disturb or touch your Finch.
+const TEST_MODE = !!process.env.FINCH_SNAPSHOT;
+const TEST_VISIBLE = TEST_MODE && !!(process.env.FINCH_KEYS || process.env.FINCH_HOLD);
+if (TEST_MODE) app.setPath('userData', path.join(os.tmpdir(), 'finch-test-profile'));
+
 // Notes are plain .md files in ~/Documents/Finch — easy to back up, sync, or open anywhere.
 // The notes folder is a setting (File → Choose Notes Folder…), stored in the app's config file.
 const CONFIG_FILE = () => path.join(app.getPath('userData'), 'config.json');
@@ -464,6 +470,7 @@ function createWindow() {
     minWidth: 760,
     minHeight: 480,
     title: 'Finch',
+    show: !(TEST_MODE && !TEST_VISIBLE),
     titleBarStyle: 'hiddenInset',
     trafficLightPosition: { x: 18, y: 18 },
     backgroundColor: nativeTheme.shouldUseDarkColors ? '#1b1c1e' : '#fbfaf7',
@@ -471,6 +478,7 @@ function createWindow() {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
       nodeIntegration: false,
+      backgroundThrottling: !TEST_MODE,
       spellcheck: true,
     },
   });
@@ -602,6 +610,7 @@ app.whenReady().then(async () => {
   tidyNames();
   if (process.env.FINCH_THEME) nativeTheme.themeSource = process.env.FINCH_THEME; // dev/test only
   buildMenu();
+  if (TEST_MODE && !TEST_VISIBLE) app.dock?.hide();
   const devIcon = path.join(__dirname, '..', 'build', 'icon.png');
   if (app.dock && fs.existsSync(devIcon)) app.dock.setIcon(devIcon);
   createWindow();
@@ -645,6 +654,14 @@ app.whenReady().then(async () => {
           }
           if (process.env.FINCH_HOLD) await new Promise((r) => setTimeout(r, Number(process.env.FINCH_HOLD))); // time for external (system) keystrokes
           if (process.env.FINCH_AFTER_JS) await mainWindow.webContents.executeJavaScript(process.env.FINCH_AFTER_JS);
+          // FINCH_SHOTS: JSON [{js, wait, out}] — run JS then save a screenshot, several times in one launch.
+          if (process.env.FINCH_SHOTS) {
+            for (const shot of JSON.parse(process.env.FINCH_SHOTS)) {
+              if (shot.js) await mainWindow.webContents.executeJavaScript(shot.js);
+              await new Promise((r) => setTimeout(r, shot.wait || 500));
+              fs.writeFileSync(shot.out, (await mainWindow.webContents.capturePage()).toPNG());
+            }
+          }
           const img = await mainWindow.webContents.capturePage();
           fs.writeFileSync(process.env.FINCH_SNAPSHOT, img.toPNG());
         } catch (err) {
